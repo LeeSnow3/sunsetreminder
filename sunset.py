@@ -1,64 +1,145 @@
 import os
+import time
+from datetime import datetime, timedelta, timezone
+import openmeteo_requests
 import requests
 from twilio.rest import Client
+import pandas as pd
+import requests_cache
+from retry_requests import retry
 
-LAT = "35.91"
-LON = "-79.05"
-
-# We request the daily sunset time AND the hourly cloud breakdowns
-URL = (
-    f"https://api.open-meteo.com/v1/forecast?"
-    f"latitude={LAT}&longitude={LON}&"
-    f"hourly=cloud_cover,cloud_cover_low,cloud_cover_high,cloud_cover_mid&"
-    f"daily=sunset&timezone=auto"
-)
+LAT = "36.077"
+LON = "-75.80"
+URL = f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&daily=sunset&timezone=auto"
 
 try:
-    response = requests.get(URL)
-    data = response.json()
+    response = requests.get(URL).json()
+    sunset_str = response['daily']['sunset'][0]  # e.g., "2026-05-22T20:15"
     
-    # 1. Get the sunset time
-    sunset_raw = data['daily']['sunset'][0]  # "2026-05-22T20:15"
-    sunset_time = sunset_raw.split('T')[1]    # "20:15"
-    sunset_hour_str = sunset_raw.split(':')[0] + ":00" # Match the hourly forecast format ("2026-05-22T20:00")
-
-    # 2. Find the index in the hourly array that matches our sunset hour
-    hourly_times = data['hourly']['time']
-    sunset_index = hourly_times.index(sunset_hour_str)
+    #Convert the sunset string into an actual datetime object
+    sunset_dt = datetime.fromisoformat(sunset_str)
+    sunset_timestamp = pd.to_datetime(sunset_str, utc=True).tz_convert("America/New_York")
+    print(f"Sunset time today is at {sunset_dt.strftime('%I:%M %p')}" )
+    # Subtract 15 minutes from the sunset time
+    target_text_time = sunset_dt - timedelta(minutes=15)
     
-    # 3. Pull cloud metrics for that exact hour
-    total_clouds = data['hourly']['cloud_cover'][sunset_index]
-    low_clouds = data['hourly']['cloud_cover_low'][sunset_index]
-    mid_clouds = data['hourly']['cloud_cover_mid'][sunset_index]
-    high_clouds = data['hourly']['cloud_cover_high'][sunset_index]
+    # Calculate how long the script needs to wait from right now
+    now = datetime.now() # Make sure your GitHub runner or environment is matching timezones
+    wait_seconds = (target_text_time - now).total_seconds()
     
-    # 4. Write some fun logic to evaluate the sunset potential
-    if low_clouds > 70:
-        condition = "It's looking pretty overcast down low, so the horizon might be blocked. ☁️"
-    elif high_clouds > 40 and low_clouds < 20:
-        condition = "Perfect conditions! High, wispy clouds are forecast—expect some beautiful pinks and purples! 🎨🌅"
-    elif total_clouds < 10:
-        condition = "Clear, crisp skies. A classic, unobstructed view! ☀️"
+    if wait_seconds > 0:
+        print(f"Waiting {wait_seconds / 60:.1f} minutes to send text at {target_text_time.strftime('%I:%M %p')}...")
+        #time.sleep(wait_seconds) #remove comment to enable sleeping
     else:
-        condition = f"Scattered cloud cover ({total_clouds}%). Could be an interesting mix!"
+        print("It is already past the 15-minute window for today, sending text immediately!")
 
-    # 5. Format the text message
-    message_body = (
-        f"Hi Mom! Today's sunset is at {sunset_time}.\n\n"
-        f"Sky Report: {condition}\n"
-        f"(Clouds - Low: {low_clouds}%, Mid: {mid_clouds}%, High: {high_clouds}%)"
-    )
-    print(message_body)  # For testing purposes, print the message instead of sending it
+    # 4. Your Twilio logic runs immediately after the sleep ends
+
+    # Setup the Open-Meteo API client with cache and retry on error
+    cache_session = requests_cache.CachedSession('.cache', expire_after = 3600)
+    retry_session = retry(cache_session, retries = 5, backoff_factor = 0.2)
+    openmeteo = openmeteo_requests.Client(session = retry_session)
+
+    # Make sure all required weather variables are listed here
+    # The order of variables in hourly or daily is important to assign them correctly below
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": 36.077192184101,
+        "longitude": -75.80591489085553,
+        "hourly": ["temperature_2m", "cloud_cover","cloud_cover_low", "cloud_cover_mid", "cloud_cover_high", "rain", "visibility"],
+        "timezone": "America/New_York",
+        "forecast_days": 1,
+        "wind_speed_unit": "mph",
+        "temperature_unit": "fahrenheit",
+        "precipitation_unit": "inch",
+    }
+    responses = openmeteo.weather_api(url, params = params)
+
+    # Process first location. Add a for-loop for multiple locations or weather models
+    response = responses[0]
+    print(f"Coordinates: {response.Latitude()}°N {response.Longitude()}°E")
+    print(f"Elevation: {response.Elevation()} m asl")
+    print(f"Timezone: {response.Timezone()}{response.TimezoneAbbreviation()}")
+    print(f"Timezone difference to GMT+0: {response.UtcOffsetSeconds()}s")
+
+    # Process hourly data. The order of variables needs to be the same as requested.
+    hourly = response.Hourly()
+    hourly_temperature_2m = hourly.Variables(0).ValuesAsNumpy()
+    hourly_cloud_cover = hourly.Variables(1).ValuesAsNumpy()
+    hourly_cloud_cover_low = hourly.Variables(2).ValuesAsNumpy()
+    hourly_cloud_cover_mid = hourly.Variables(3).ValuesAsNumpy()
+    hourly_cloud_cover_high = hourly.Variables(4).ValuesAsNumpy()
+    hourly_rain = hourly.Variables(5).ValuesAsNumpy()
+    hourly_visibility = hourly.Variables(6).ValuesAsNumpy()
+
+    hourly_data = {
+        "date": pd.date_range(
+            start = pd.to_datetime(hourly.Time(), unit = "s", utc = True),
+            end =  pd.to_datetime(hourly.TimeEnd(), unit = "s", utc = True),
+            freq = pd.Timedelta(seconds = hourly.Interval()),
+            inclusive = "left"
+        ).tz_convert(response.Timezone().decode())
+    }
+
+    hourly_data["temperature_2m"] = hourly_temperature_2m
+    hourly_data["cloud_cover"] = hourly_cloud_cover
+    hourly_data["cloud_cover_low"] = hourly_cloud_cover_low
+    hourly_data["cloud_cover_mid"] = hourly_cloud_cover_mid
+    hourly_data["cloud_cover_high"] = hourly_cloud_cover_high
+    hourly_data["rain"] = hourly_rain
+    hourly_data["visibility"] = hourly_visibility
+    #full hourly dataframe
+    hourly_dataframe = pd.DataFrame(data = hourly_data)
+    #print("\nHourly data\n", hourly_dataframe)
     
-    """     # Send via Twilio (using your GitHub environment variables)
-    client = Client(os.environ['TWILIO_ACCOUNT_SID'], os.environ['TWILIO_AUTH_TOKEN'])
+    start_time = sunset_timestamp - timedelta(minutes = 30)
+    end_window = sunset_timestamp + timedelta(minutes = 30)
+    sunset_profile_df = hourly_dataframe[(hourly_dataframe['date'] >= start_time) & (hourly_dataframe['date'] <= end_window)]
+
+    #print(sunset_profile_df)
+
+    # Grab the mean metrics inside our sunset window frame
+    temp = sunset_profile_df['temperature_2m'].mean()
+    total_clouds = sunset_profile_df['cloud_cover'].mean()
+    low_clouds = sunset_profile_df['cloud_cover_low'].mean()
+    high_clouds = sunset_profile_df['cloud_cover_high'].mean()
+    rain = sunset_profile_df['rain'].mean()
+
+    # Conditions text lines
+    if rain > 0.01 and rain <= 0.1:
+        condition = "Looks like it might be drizzling, could get a rainbow if the sun peeks through! 🌈"
+    elif rain > 0.1:
+        condition = "Light rain expected, but it could hold off long enough for a nice sunset! ☔"
+    elif low_clouds > 70:
+        condition = "Thick low clouds might block the horizon today but you never know if the sun might dip below! ☁️"
+    elif low_clouds < 10 and total_clouds > 50:
+        condition = "High clouds with a clear horizon could create a fiery red and orange sunset! 🔥"
+    elif high_clouds > 40 and low_clouds < 20:
+        condition = "Stunning potential! High cirrus clouds are rolling in—get ready for brilliant pinks and deep purples! 🎨🌅"
+    elif total_clouds < 10:
+        condition = "Clear and pristine skies. Perfect for a classic, glowing sunset. ☀️"
+    else:
+        condition = f"Scattered clouds ({total_clouds:.0f}% coverage). Could provide some great contrast!"
+
+    message_body = (
+        f"Hi Mom! Today's sunset is at {sunset_dt.strftime('%I:%M %p')}.\n\n"
+        f"{condition}\n"
+        f"Temp: {temp:.1f}°F"
+    )
+
+    # Send the text
+    account_sid = os.environ['TWILIO_ACCOUNT_SID']
+    auth_token = os.environ['TWILIO_AUTH_TOKEN']
+    client = Client(account_sid, auth_token)
+
     message = client.messages.create(
         body=message_body,
         from_=os.environ['TWILIO_PHONE_NUMBER'],
         to=os.environ['MOM_PHONE_NUMBER']
     )
-    print("Text sent successfully!")
-    """
+    
+    print(f"Text successfully dispatched to Twilio! Message SID: {message.sid}")
+
+
 except Exception as e:
     print(f"Error: {e}")
-

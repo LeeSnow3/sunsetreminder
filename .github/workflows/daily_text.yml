@@ -13,12 +13,10 @@ jobs:
 
     steps:
     - name: Checkout Repository Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v4.2.2 # Explicitly uses updated security builds
 
     - name: Set Up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      uses: actions/setup-python@v5.3.0
 
     - name: Install Dependencies
       run: |
@@ -31,5 +29,5 @@ jobs:
         TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
         TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
         TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
-        RECIP_PHONE_NUMBER: ${{ secrets.RECIP_MOM_NUMBER }}
+        RECIP_PHONE_NUMBER: ${{ secrets.RECIP_PHONE_NUMBER }}
       run: python sunset_notifier.py

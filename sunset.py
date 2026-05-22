@@ -135,7 +135,7 @@ try:
     message = client.messages.create(
         body=message_body,
         from_=os.environ['TWILIO_PHONE_NUMBER'],
-        to=os.environ['MOM_PHONE_NUMBER']
+        to=os.environ['RECIP_PHONE_NUMBER']
     )
     
     print(f"Text successfully dispatched to Twilio! Message SID: {message.sid}")

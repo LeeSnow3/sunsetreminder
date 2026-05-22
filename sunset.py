@@ -27,11 +27,11 @@ try:
     now = datetime.now() # Make sure your GitHub runner or environment is matching timezones
     wait_seconds = (target_text_time - now).total_seconds()
     
-    if wait_seconds > 0:
+    """ if wait_seconds > 0:
         print(f"Waiting {wait_seconds / 60:.1f} minutes to send text at {target_text_time.strftime('%I:%M %p')}...")
         #time.sleep(wait_seconds) #remove comment to enable sleeping
     else:
-        print("It is already past the 15-minute window for today, sending text immediately!")
+        print("It is already past the 15-minute window for today, sending text immediately!") """
 
     # 4. Your Twilio logic runs immediately after the sleep ends
 

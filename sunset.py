@@ -129,12 +129,11 @@ try:
         f"{condition}\n"
         f"Temp: {temp:.1f}°F"
     )
-    MOM_SMS_EMAIL = "2524891412@vtext.com" 
 
     # 2. Package your existing message_body
     msg = MIMEText(message_body)
-    msg['From'] = "sunsetscout75@gmail.com"
-    msg['To'] = MOM_SMS_EMAIL
+    msg['From'] = SENDER_EMAIL
+    msg['To'] = RECIP_EMAIL
 
     # 3. Fire it through a standard SMTP mail server
     try:

@@ -31,4 +31,5 @@ jobs:
         TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
         RECIP_PHONE_NUMBER: ${{ secrets.RECIP_PHONE_NUMBER }}
         APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+        RECIP_EMAIL: ${{ secrets.RECIP_EMAIL }}
       run: python sunset.py

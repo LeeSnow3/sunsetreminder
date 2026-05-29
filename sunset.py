@@ -1,9 +1,7 @@
 import os
-import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 import openmeteo_requests
 import requests
-from twilio.rest import Client
 import pandas as pd
 import requests_cache
 from retry_requests import retry
@@ -36,11 +34,9 @@ try:
     
     if wait_seconds > 0:
         print(f"Waiting {wait_seconds / 60:.1f} minutes to send text at {target_text_time.strftime('%I:%M %p')}...")
-        #time.sleep(wait_seconds) #remove comment to enable sleeping
+        time.sleep(wait_seconds)
     else:
         print("It is already past the 15-minute window for today, sending text immediately!")
-
-    # 4. Twilio logic runs immediately after the sleep ends
 
     # Setup the Open-Meteo API client with cache and retry on error
     cache_session = requests_cache.CachedSession('.cache', expire_after = 3600)
@@ -103,8 +99,6 @@ try:
     end_window = sunset_timestamp + timedelta(minutes = 30)
     sunset_profile_df = hourly_dataframe[(hourly_dataframe['date'] >= start_time) & (hourly_dataframe['date'] <= end_window)]
 
-    #print(sunset_profile_df)
-
     # Grab the mean metrics inside our sunset window frame
     temp = sunset_profile_df['temperature_2m'].mean()
     total_clouds = sunset_profile_df['cloud_cover'].mean()
@@ -139,7 +133,6 @@ try:
     msg['From'] = SENDER_EMAIL
     msg['To'] = RECIP_EMAIL
 
-    print(SENDER_EMAIL, RECIP_EMAIL, APP_PASSWORD)
     # 3. Fire it through a standard SMTP mail server
     try:
         server = smtplib.SMTP("smtp.gmail.com", 587)

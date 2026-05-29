@@ -10,6 +10,10 @@ from retry_requests import retry
 import smtplib
 from email.mime.text import MIMEText
 
+APP_PASSWORD = os.environ.get("APP_PASSWORD") 
+RECIP_EMAIL = os.environ.get("RECIP_EMAIL")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
+
 
 LAT = "36.077"
 LON = "-75.80"

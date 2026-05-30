@@ -27,10 +27,11 @@ try:
     print(f"Sunset time today is at {sunset_dt.strftime('%I:%M %p')}" )
     # Subtract 15 minutes from the sunset time
     target_text_time = sunset_dt - timedelta(minutes=15)
-    
+    print(f"Target text time is at {target_text_time.strftime('%I:%M %p')}")
     # Calculate how long the script needs to wait from right now
-    now = datetime.now() # Make sure your GitHub runner or environment is matching timezones
+    now = datetime.now()
     wait_seconds = (target_text_time - now).total_seconds()
+    print(f"Current time is {now.strftime('%I:%M %p')}")
     
     if wait_seconds > 0:
         print(f"Waiting {wait_seconds / 60:.1f} minutes to send text at {target_text_time.strftime('%I:%M %p')}...")

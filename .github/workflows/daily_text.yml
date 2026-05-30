@@ -2,9 +2,8 @@ name: Send Daily Sunset Text
 
 on:
   schedule:
-    # This runs daily at 18:00 UTC. Adjust this time to whenever 
-    # you want the text to go out (e.g., a few hours before sunset).
-    - cron: '0 21 * * *'
+    - cron: '0 16 * * *'
+      timezone: 'America/New_York'
   workflow_dispatch: # This allows you to click a button to test it manually anytime
 
 jobs:

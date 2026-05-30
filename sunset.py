@@ -1,5 +1,6 @@
 import os
-from datetime import datetime, time, timedelta, timezone
+import time
+from datetime import datetime, timedelta, timezone
 import openmeteo_requests
 import requests
 import pandas as pd
@@ -32,7 +33,7 @@ try:
     now = datetime.now()
     wait_seconds = (target_text_time - now).total_seconds()
     print(f"Current time is {now.strftime('%I:%M %p')}")
-    
+
     if wait_seconds > 0:
         print(f"Waiting {wait_seconds / 60:.1f} minutes to send text at {target_text_time.strftime('%I:%M %p')}...")
         time.sleep(wait_seconds)
